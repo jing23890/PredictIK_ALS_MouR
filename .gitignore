@@ -73,3 +73,15 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# Local editor/agent settings and transient Python files
+.codex/
+.vscode/
+*.code-workspace
+.ignore
+__pycache__/
+*.pyc
+.env
+.env.*
+Plugins/**/Saved/
+Plugins/**/DerivedDataCache/

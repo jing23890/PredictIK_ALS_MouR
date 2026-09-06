@@ -1,0 +1,201 @@
+{
+  "tool": {
+    "name": "unreal",
+    "title": "Unreal Editor",
+    "description": "Discover and execute Unreal Editor workflows through UE Python/reflection, console commands, ordered batches, transactions, and asynchronous task tracking.",
+    "inputSchema": {
+      "type": "object",
+      "oneOf": [
+        {
+          "properties": {
+            "action": { "const": "discover", "description": "Search capability domains and Unreal API starting points." },
+            "query": { "type": "string", "maxLength": 4096, "description": "Natural-language capability query (maximum 4096 characters)." },
+            "domain": { "type": "string", "description": "Exact capability-domain id." },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 50 }
+          },
+          "required": ["action"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": { "const": "health", "description": "Check the in-editor MCP server." }
+          },
+          "required": ["action"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": { "const": "execute", "description": "Run an ordered command batch." },
+            "commands": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 100,
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": { "const": "python" },
+                      "code": { "type": "string", "minLength": 1 },
+                      "mode": { "enum": ["exec", "eval"], "default": "exec" },
+                      "label": { "type": "string" }
+                    },
+                    "required": ["kind", "code"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": { "const": "console" },
+                      "command": { "type": "string", "minLength": 1 },
+                      "label": { "type": "string" }
+                    },
+                    "required": ["kind", "command"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": { "const": "blueprint_graph", "description": "Inspect or author visible K2 Blueprint graph logic through a controlled native UE 5.7 backend modeled after UE 5.8 BlueprintGraphEditor." },
+                      "operation": { "enum": ["inspect", "add_event", "add_custom_event", "add_function_call", "add_variable_get", "add_variable_set", "connect", "disconnect", "set_pin_default", "remove_node", "move_node", "set_comment", "compile"] },
+                      "blueprint_path": { "type": "string", "minLength": 1, "description": "Blueprint object or package path, for example /Game/Blueprints/BP_Platform.BP_Platform." },
+                      "graph": { "type": "string", "description": "Graph name; omit for the main Event Graph." },
+                      "label": { "type": "string" },
+                      "node_id": { "type": "string", "format": "uuid" },
+                      "pin_id": { "type": "string", "format": "uuid" },
+                      "pin_name": { "type": "string" },
+                      "pin_direction": { "enum": ["input", "output"] },
+                      "pin_index": { "type": "integer", "minimum": 0 },
+                      "from_node_id": { "type": "string", "format": "uuid" },
+                      "from_pin_id": { "type": "string", "format": "uuid" },
+                      "from_pin_name": { "type": "string" },
+                      "from_pin_direction": { "enum": ["input", "output"] },
+                      "from_pin_index": { "type": "integer", "minimum": 0 },
+                      "to_node_id": { "type": "string", "format": "uuid" },
+                      "to_pin_id": { "type": "string", "format": "uuid" },
+                      "to_pin_name": { "type": "string" },
+                      "to_pin_direction": { "enum": ["input", "output"] },
+                      "to_pin_index": { "type": "integer", "minimum": 0 },
+                      "event_name": { "type": "string" },
+                      "event_class": { "type": "string" },
+                      "function_path": { "type": "string" },
+                      "function_class": { "type": "string" },
+                      "function_name": { "type": "string" },
+                      "variable_name": { "type": "string" },
+                      "default_value": { "type": "string" },
+                      "comment": { "type": "string" },
+                      "x": { "type": "integer" },
+                      "y": { "type": "integer" },
+                      "save": { "type": "boolean", "default": false }
+                    },
+                    "required": ["kind", "operation", "blueprint_path"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": { "const": "wait" },
+                      "frames": { "type": "integer", "minimum": 1, "maximum": 18000, "description": "Number of Game Thread ticks to yield before continuing. Requires run=async." },
+                      "label": { "type": "string" }
+                    },
+                    "required": ["kind", "frames"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": { "const": "wait" },
+                      "seconds": { "type": "number", "minimum": 0.001, "maximum": 299, "description": "Wall-clock seconds to yield without blocking the Game Thread. Requires run=async." },
+                      "label": { "type": "string" }
+                    },
+                    "required": ["kind", "seconds"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "run": { "enum": ["sync", "async"], "default": "sync", "description": "Async batches yield the Game Thread between commands and support non-blocking wait commands." },
+            "transaction": { "type": "boolean", "default": true, "description": "Record each Python/console command for Undo; wait commands do not create transactions. The batch is not atomic, Python can make partial changes before raising, and failures are not rolled back automatically." },
+            "continue_on_error": { "type": "boolean", "default": false }
+          },
+          "required": ["action", "commands"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": { "const": "task", "description": "List asynchronous batches owned by this MCP session." },
+            "command": { "const": "list" },
+            "task_id": { "type": "string", "format": "uuid", "description": "Ignored for list; accepted for backward compatibility." }
+          },
+          "required": ["action", "command"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": { "const": "task", "description": "Get or cooperatively cancel an asynchronous batch owned by this MCP session." },
+            "command": { "enum": ["get", "cancel"], "description": "Cancellation takes effect only between commands." },
+            "task_id": { "type": "string", "format": "uuid" }
+          },
+          "required": ["action", "command", "task_id"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  "official_all_toolsets_plugins": [
+    "AIModuleToolset", "AnimationAssistantToolset", "AutomationTestToolset",
+    "ConfigSettingsToolset", "ConversationToolset", "DataRegistryToolset",
+    "DataflowAgent", "EditorToolset", "GameFeaturesToolset", "GameplayTagsToolset",
+    "GASToolsets", "MCPClientToolset", "NiagaraToolsets", "PCGToolset",
+    "PhysicsToolsets", "PluginToolset", "SemanticSearchToolset",
+    "SlateInspectorToolset", "StateTreeToolset", "UMGToolSet", "WorldConditionsToolset"
+  ],
+  "capabilities": [
+    { "id": "actor-world", "title": "Actors and worlds", "summary": "Find, spawn, select, transform, attach, inspect, and delete actors; load and save levels.", "official_plugins": ["EditorToolset"], "backend": "python", "keywords": ["actor", "world", "level", "map", "transform", "spawn", "selection", "pie", "collision", "overlap", "player pawn"], "examples": ["unreal.EditorActorSubsystem", "unreal.EditorLoadingAndSavingUtils"], "recipes": [
+      { "name": "level_actors", "mode": "eval", "code": "[(actor.get_path_name(), actor.get_class().get_path_name()) for actor in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()]" },
+      { "name": "pie_player_pawn", "mode": "eval", "code": "unreal.GameplayStatics.get_player_pawn(unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world(), 0)" },
+      { "name": "trigger_pawn_overlap", "mode": "exec", "code": "collision = trigger.get_collision_component(); collision.set_collision_response_to_all_channels(unreal.CollisionResponseType.ECR_IGNORE); collision.set_collision_response_to_channel(unreal.CollisionChannel.ECC_PAWN, unreal.CollisionResponseType.ECR_OVERLAP)" }
+    ] },
+    { "id": "asset", "title": "Assets and Content Browser", "summary": "Query, create, import, duplicate, rename, save, export, and delete assets and folders.", "official_plugins": ["EditorToolset"], "backend": "python", "keywords": ["asset", "content browser", "registry", "import", "rename", "save"], "examples": ["unreal.AssetRegistryHelpers", "unreal.EditorAssetLibrary", "unreal.AssetToolsHelpers"] },
+    { "id": "blueprint", "title": "Blueprint assets, defaults, and K2 graphs", "summary": "Use UE Python for Blueprint assets, classes, variables, components, and defaults. Use the native blueprint_graph command for visible K2 Event Graph nodes, pins, connections, compilation, and saving; component configuration alone is not Event Graph logic. Timeline track authoring is not supported.", "official_plugins": ["EditorToolset"], "backend": "python+native-blueprint-graph", "keywords": ["blueprint", "event graph", "k2", "node", "pin", "connection", "class", "component", "compile", "reflection", "visible logic"], "examples": ["unreal.BlueprintEditorLibrary", "blueprint_graph.inspect", "blueprint_graph.add_function_call", "blueprint_graph.connect", "blueprint_graph.compile"], "recipes": [
+      { "name": "inspect_event_graph", "command": { "kind": "blueprint_graph", "operation": "inspect", "blueprint_path": "/Game/Blueprints/BP_Example.BP_Example" } },
+      { "name": "add_begin_play", "command": { "kind": "blueprint_graph", "operation": "add_event", "blueprint_path": "/Game/Blueprints/BP_Example.BP_Example", "event_name": "ReceiveBeginPlay", "event_class": "/Script/Engine.Actor", "x": 0, "y": 0 } },
+      { "name": "compile_and_save", "command": { "kind": "blueprint_graph", "operation": "compile", "blueprint_path": "/Game/Blueprints/BP_Example.BP_Example", "save": true } }
+    ] },
+    { "id": "ai-navigation", "title": "AI and navigation", "summary": "Inspect AI systems, behavior assets, controllers, perception, and navigation data.", "official_plugins": ["AIModuleToolset"], "backend": "python", "keywords": ["ai", "navigation", "navmesh", "behavior tree", "blackboard", "perception"], "examples": ["unreal.AISystem", "unreal.NavigationSystemV1"] },
+    { "id": "animation", "title": "Animation and Control Rig", "summary": "Inspect and edit animations, rigs, keys, bindings, sections, and Sequencer data.", "official_plugins": ["AnimationAssistantToolset", "SequencerAnimMixerToolset"], "backend": "python", "keywords": ["animation", "control rig", "sequencer", "keyframe", "binding", "single node", "jump", "fall", "land"], "examples": ["unreal.ControlRigSequencerLibrary", "unreal.SequencerTools"], "recipes": [
+      { "name": "skeletal_mesh_current_animation", "mode": "eval", "code": "skeletal_mesh_component.get_anim_instance().get_animation_asset()" }
+    ] },
+    { "id": "automation", "title": "Automation tests", "summary": "Discover, run, stop, and inspect Unreal Automation tests and results.", "official_plugins": ["AutomationTestToolset"], "backend": "console", "keywords": ["automation", "test", "functional test", "result", "smoke"], "examples": ["Automation List", "Automation RunTests", "Automation Stop"] },
+    { "id": "config", "title": "Project and editor settings", "summary": "Inspect, update, reset, and persist configuration and reflected settings.", "official_plugins": ["ConfigSettingsToolset"], "backend": "python", "keywords": ["config", "ini", "settings", "preferences", "default"], "examples": ["unreal.get_default_object", "save_config"] },
+    { "id": "conversation", "title": "Conversation graphs", "summary": "Create and edit conversation assets, nodes, links, participants, and entry points.", "official_plugins": ["ConversationToolset"], "backend": "python", "keywords": ["conversation", "dialogue", "participant", "node", "quest"], "examples": ["reflected CommonConversation classes"] },
+    { "id": "data-registry", "title": "Data Registry", "summary": "List registries, sources, schemas, runtime sources, and resolved items.", "official_plugins": ["DataRegistryToolset"], "backend": "python", "keywords": ["data registry", "data table", "source", "schema", "item"], "examples": ["unreal.DataRegistrySubsystem"] },
+    { "id": "dataflow", "title": "Dataflow graphs", "summary": "Create and modify Dataflow graphs, nodes, pins, comments, and variables.", "official_plugins": ["DataflowAgent"], "backend": "python", "keywords": ["dataflow", "graph", "node", "pin", "variable", "geometry collection"], "examples": ["reflected Dataflow editor subsystems"] },
+    { "id": "editor-ui", "title": "Editor state and capture", "summary": "Inspect selections, open assets, viewport state, camera state, PIE, widgets, and capture images.", "official_plugins": ["EditorToolset", "SlateInspectorToolset"], "backend": "python", "keywords": ["editor", "viewport", "camera", "capture", "screenshot", "selection", "pie", "widget", "viewport"], "examples": ["unreal.UnrealEditorSubsystem", "unreal.AutomationLibrary", "unreal.ObjectIterator"], "recipes": [
+      { "name": "widgets_in_viewport", "mode": "eval", "code": "[(widget.get_path_name(), widget.get_class().get_path_name()) for widget in unreal.ObjectIterator(unreal.UserWidget) if widget.is_in_viewport()]" },
+      { "name": "start_pie_simulation", "mode": "exec", "code": "unreal.EditorLevelLibrary.editor_play_simulate()" },
+      { "name": "stop_pie", "mode": "exec", "code": "unreal.EditorLevelLibrary.editor_end_play()" }
+    ] },
+    { "id": "logs-cvars", "title": "Logs and console variables", "summary": "Inspect logs, categories, verbosity, console variables, and console commands.", "official_plugins": ["EditorToolset"], "backend": "console", "keywords": ["log", "output log", "cvar", "console", "verbosity"], "examples": ["unreal.SystemLibrary.execute_console_command"] },
+    { "id": "game-features", "title": "Game Features", "summary": "Discover Game Feature plugins and request activation or deactivation.", "official_plugins": ["GameFeaturesToolset"], "backend": "python", "keywords": ["game feature", "plugin state", "activate", "deactivate"], "examples": ["unreal.GameFeaturesSubsystem"] },
+    { "id": "gameplay-tags", "title": "Gameplay Tags", "summary": "Inspect, add, remove, rename, and find references to Gameplay Tags.", "official_plugins": ["GameplayTagsToolset"], "backend": "python", "keywords": ["gameplay tag", "tag source", "redirect", "reference"], "examples": ["unreal.GameplayTagsManager"] },
+    { "id": "gas", "title": "Gameplay Ability System", "summary": "Inspect abilities, attribute sets, active effects, tags, and Gameplay Cues.", "official_plugins": ["GASToolsets"], "backend": "python", "keywords": ["gas", "gameplay ability", "attribute", "effect", "gameplay cue"], "examples": ["unreal.AbilitySystemComponent", "unreal.GameplayCueManager"] },
+    { "id": "mcp-client", "title": "UE-side MCP clients", "summary": "Inspect UE-side MCP client configurations and toolsets when enabled.", "official_plugins": ["MCPClientToolset"], "backend": "python", "keywords": ["mcp", "client", "server", "toolset"], "examples": ["reflected MCPClientToolset APIs"] },
+    { "id": "niagara", "title": "Niagara", "summary": "Create and inspect systems, emitters, scripts, renderers, modules, and parameters.", "official_plugins": ["NiagaraToolsets"], "backend": "python", "keywords": ["niagara", "vfx", "emitter", "renderer", "module", "particle"], "examples": ["unreal.NiagaraEditorSubsystem", "unreal.NiagaraFunctionLibrary"] },
+    { "id": "pcg", "title": "Procedural Content Generation", "summary": "Create and edit PCG graphs and nodes, run generation, and perform spatial queries.", "official_plugins": ["PCGToolset"], "backend": "python", "keywords": ["pcg", "procedural", "graph", "node", "spatial", "generate"], "examples": ["unreal.PCGSubsystem", "unreal.PCGGraph", "unreal.PCGComponent"] },
+    { "id": "physics", "title": "Physics assets", "summary": "Create and edit bodies, shapes, mass properties, constraints, and limits.", "official_plugins": ["PhysicsToolsets"], "backend": "python", "keywords": ["physics", "body", "constraint", "sphere", "capsule", "mass"], "examples": ["unreal.PhysicsAsset", "unreal.PhysicsConstraintTemplate"] },
+    { "id": "plugins", "title": "Plugin management", "summary": "Discover plugins, inspect dependencies, create project plugins, and update descriptors.", "official_plugins": ["PluginToolset"], "backend": "python", "keywords": ["plugin", "uplugin", "dependency", "enable", "descriptor"], "examples": ["unreal.PluginBlueprintLibrary"] },
+    { "id": "semantic-search", "title": "Semantic search", "summary": "Index and search project assets or source descriptions semantically when available.", "official_plugins": ["SemanticSearchToolset"], "backend": "python", "keywords": ["semantic", "search", "embedding", "index", "similarity"], "examples": ["reflected SemanticSearch APIs"] },
+    { "id": "slate", "title": "Slate inspection and interaction", "summary": "Inspect widget trees and automate clicks, typing, dragging, forms, and screenshots.", "official_plugins": ["SlateInspectorToolset"], "backend": "python", "keywords": ["slate", "widget", "window", "click", "drag", "keyboard", "form"], "examples": ["unreal.AutomationDriverLibrary", "reflected Slate test APIs"] },
+    { "id": "state-tree", "title": "StateTree", "summary": "Inspect and edit StateTree tasks, evaluators, transitions, conditions, and bindings.", "official_plugins": ["StateTreeToolset"], "backend": "python", "keywords": ["state tree", "statetree", "task", "transition", "condition", "binding"], "examples": ["reflected StateTree editor data"] },
+    { "id": "umg", "title": "UMG and MVVM", "summary": "Create Widget Blueprints and edit widget trees, slots, variables, events, and bindings.", "official_plugins": ["UMGToolSet", "MVVMToolset"], "backend": "python", "keywords": ["umg", "widget blueprint", "panel", "slot", "mvvm", "binding"], "examples": ["unreal.WidgetBlueprint", "unreal.WidgetBlueprintLibrary"] },
+    { "id": "world-conditions", "title": "World Conditions", "summary": "Inspect and evaluate World Condition schemas, contexts, and query definitions.", "official_plugins": ["WorldConditionsToolset"], "backend": "python", "keywords": ["world condition", "condition", "query", "schema", "context"], "examples": ["reflected WorldConditions APIs"] },
+    { "id": "unlua", "title": "UnLua and project APIs", "summary": "Inspect UnLua classes, execute project Python helpers, and interact with project-specific reflected APIs.", "official_plugins": [], "backend": "python", "keywords": ["unlua", "lua", "project api", "custom", "reflection"], "examples": ["unreal.load_class", "unreal.load_object"] }
+  ]
+}
