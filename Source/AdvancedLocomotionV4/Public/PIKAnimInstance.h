@@ -23,12 +23,19 @@ struct FPIKFootState
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PIK|Foot") float TimeToLandSec = 0.f;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PIK|Foot") float PathProgress = 0.f;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PIK|Foot") int32 PathBuildCount = 0;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PIK|Foot") bool bUsingPrediction = false;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PIK|Foot") bool bExitPredictionPending = false;
 
     FVector LastBuildTargetWS = FVector::ZeroVector;
     float TimeSinceBuildSec = 0.f;
+    float ExitPredictionTimeSec = 0.f;
+    FVector HandoffCorrectionWS = FVector::ZeroVector;
+    FVector SmoothedNormalWS = FVector::UpVector;
+    FQuat SmoothedSlopeWS = FQuat::Identity;
+    float GroundLiftCm = 0.f;
 };
 
-/** Forward-walk prototype. No Mesh movement, no ordinary-IK fallback, no curve writes. */
+/** Shared ground contact and forward-walk prediction. No Mesh movement or curve writes. */
 UCLASS(Blueprintable, BlueprintType)
 class ADVANCEDLOCOMOTIONV4_API UPIKAnimInstance : public UAnimInstance
 {
@@ -36,6 +43,7 @@ class ADVANCEDLOCOMOTIONV4_API UPIKAnimInstance : public UAnimInstance
 
 public:
     virtual void NativeInitializeAnimation() override;
+    virtual void NativePostEvaluateAnimation() override;
     virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Enable") bool bPIK_Enabled = true;
@@ -43,6 +51,7 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Contact", meta=(ClampMin="0", Units="cm")) float PIK_PlantThresholdCm = 14.f;
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Contact", meta=(ClampMin="0", Units="cm")) float PIK_ReleaseThresholdCm = 14.5f;
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Contact", meta=(ClampMin="0", Units="cm")) float PIK_AnkleHeightCm = 13.46f;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Contact", meta=(ClampMin="0.1", Units="cm")) float PIK_ContactBlendHeightCm = 2.f;
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Trace", meta=(ClampMin="1", Units="cm")) float PIK_TraceUpCm = 80.f;
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Trace", meta=(ClampMin="1", Units="cm")) float PIK_TraceDownCm = 120.f;
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Trace", meta=(ClampMin="1", Units="cm")) float PIK_MaxTerrainDeltaCm = 45.f;
@@ -59,6 +68,8 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Blend", meta=(ClampMin="0.01", Units="s")) float PIK_BlendOutSec = 0.12f;
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Pelvis", meta=(ClampMin="0", Units="cm")) float PIK_MaxPelvisOffsetCm = 40.f;
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Pelvis", meta=(ClampMin="0.1")) float PIK_PelvisInterpSpeed = 10.f;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Contact", meta=(ClampMin="0.1")) float PIK_ContactInterpSpeed = 15.f;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="PIK|Blend", meta=(ClampMin="0.05", Units="s")) float PIK_MaxStopHandoffSec = 0.3f;
 
     // Sampled from ALS_N_Walk_F at FootTimeToLand_L/R == 0 (0.2 / 0.7666667 sec).
     // Component-space +Y is forward for the ALS mannequin. Never derive these from solved feet.
@@ -86,11 +97,21 @@ public:
     static float PIK_SamplePathHeight(const TArray<FVector>& PointsWS, const FVector& PositionWS);
 
 private:
-    bool PIK_UpdateFoot(FPIKFootState& State, bool bLeft, float DeltaSeconds, const FVector& VelocityWS, float PlayRate);
+    void PIK_GetReferenceFoot(bool bLeft, FVector& OutCS, FVector& OutWS) const;
+    FTransform PIK_ReferencePoseCS[2];
+    FTransform PIK_ReferencePoseWS[2];
+    bool bPIK_ReferencePoseValid = false;
+    FVector PIK_UnshiftedHipCS[2];
+    float PIK_LegLengthCS[2] = {0.f,0.f};
+    bool PIK_UpdateFoot(FPIKFootState& State, bool bLeft, float DeltaSeconds, const FVector& VelocityWS, float PlayRate, bool bRequestPrediction);
+    bool PIK_UpdatePredictiveFoot(FPIKFootState& State, bool bLeft, float DeltaSeconds, const FVector& VelocityWS, float PlayRate);
+    bool PIK_UpdateGroundFoot(FPIKFootState& State, bool bLeft, bool bCurvesValid, float DeltaSeconds);
+    bool PIK_AreFootCurvesValid(bool bLeft) const;
     bool PIK_TraceGround(const FVector& OriginWS, FHitResult& Hit);
     bool PIK_TraceSegment(const FVector& StartWS, const FVector& EndWS, FHitResult& Hit);
     bool PIK_IsWalkable(const FHitResult& Hit) const;
     bool PIK_IsTestPoseEligible(FString& Reason) const;
+    bool PIK_IsGroundPoseEligible(FString& Reason) const;
     float PIK_ReadALSFloat(FName Name, float Fallback) const;
     int64 PIK_ReadALSEnum(FName Name, int64 Fallback) const;
     void PIK_DrawFoot(const FPIKFootState& State, const FColor& Color) const;
